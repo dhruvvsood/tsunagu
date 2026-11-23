@@ -1,5 +1,6 @@
 import { corsair } from "@/db";
 import { getSessionCached } from "@/lib/session-cache";
+import { cacheDeletePrefix } from "@/lib/server-cache";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -18,6 +19,7 @@ export async function POST(
       .withTenant(session.user.id)
       .gmail.api.messages.modify({ id, removeLabelIds: ["INBOX"] });
 
+    cacheDeletePrefix(`emails:${session.user.id}:`);
     return NextResponse.json({ message });
   } catch (err: any) {
     console.error("[api/emails/[id]/archive POST]", err?.message ?? err);

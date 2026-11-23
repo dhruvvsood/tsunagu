@@ -12,9 +12,10 @@ const isProd = process.env.NODE_ENV === "production";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: isProd ? 5 : 50,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
+  max: isProd ? 10 : 50,
+  idleTimeoutMillis: 10_000,   // release idle connections faster on Railway
+  connectionTimeoutMillis: 10_000,
+  allowExitOnIdle: true,
   ssl: isProd ? { rejectUnauthorized: false } : false,
 });
 export const db = drizzle(pool, { schema });

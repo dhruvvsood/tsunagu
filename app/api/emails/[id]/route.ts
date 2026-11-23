@@ -57,6 +57,7 @@ export async function PATCH(
       .withTenant(session.user.id)
       .gmail.api.messages.modify({ id, addLabelIds, removeLabelIds });
 
+    cacheDeletePrefix(`emails:${session.user.id}:`);
     return NextResponse.json({ message });
   } catch (err: any) {
     console.error("[api/emails/[id] PATCH]", err?.message ?? err);
@@ -76,6 +77,7 @@ export async function DELETE(
 
   try {
     await corsair.withTenant(session.user.id).gmail.api.messages.trash({ id });
+    cacheDeletePrefix(`emails:${session.user.id}:`);
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error("[api/emails/[id] DELETE]", err?.message ?? err);

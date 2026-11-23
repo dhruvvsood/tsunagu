@@ -1,5 +1,6 @@
 import { corsair } from "@/db";
 import { getSessionCached } from "@/lib/session-cache";
+import { cacheGet, cacheSet, cacheDeletePrefix, TTL } from "@/lib/server-cache";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -31,8 +32,13 @@ export async function GET(req: Request) {
     ? calendarIdsParam.split(",").map((s) => s.trim()).filter(Boolean)
     : ["primary"];
 
+  const userId = session.user.id;
+  const cacheKey = `cal:events:${userId}:${calendarIds.slice().sort().join(",")}:${timeMin}:${timeMax}`;
+  const cached = cacheGet<{ events: any[] }>(cacheKey);
+  if (cached) return NextResponse.json(cached);
+
   try {
-    const tenant = corsair.withTenant(session.user.id);
+    const tenant = corsair.withTenant(userId);
 
     // Fetch events for each calendar in parallel, then merge
     const perCalendar = await Promise.all(
@@ -57,7 +63,9 @@ export async function GET(req: Request) {
       }),
     );
 
-    return NextResponse.json({ events: perCalendar.flat() });
+    const payload = { events: perCalendar.flat() };
+    cacheSet(cacheKey, payload, TTL.calEvents);
+    return NextResponse.json(payload);
   } catch (err: any) {
     console.error("[api/calendar/events GET]", err?.message ?? err);
     if (isTokenError(err)) {
@@ -80,6 +88,7 @@ export async function POST(req: Request) {
         event: body.event,
         sendUpdates: body.sendUpdates ?? "all",
       });
+    cacheDeletePrefix(`cal:events:${session.user.id}:`);
     return NextResponse.json({ event });
   } catch (err: any) {
     console.error("[api/calendar/events POST]", err?.message ?? err);

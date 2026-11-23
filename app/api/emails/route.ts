@@ -1,6 +1,7 @@
 import { corsair } from "@/db";
 import { auth } from "@/lib/auth";
 import { getSessionCached } from "@/lib/session-cache";
+import { cacheGet, cacheSet, TTL } from "@/lib/server-cache";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -39,7 +40,14 @@ export async function GET(req: Request) {
   const maxResults = Number(searchParams.get("maxResults") ?? "20");
   const category   = searchParams.get("category") ?? "inbox";
 
-  const tenant = corsair.withTenant(session.user.id);
+  const userId = session.user.id;
+  const cacheKey = `emails:${userId}:${category}:${pageToken ?? ""}:${maxResults}`;
+  const cached = cacheGet<{ messages: any[]; nextPageToken: string | null }>(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached, { headers: { "Cache-Control": "no-store", "X-Cache": "HIT" } });
+  }
+
+  const tenant = corsair.withTenant(userId);
 
   try {
     const queryParams: any = {
@@ -67,9 +75,12 @@ export async function GET(req: Request) {
       .filter((r: any) => r.status === "fulfilled")
       .map((r: any) => r.value);
 
+    const payload = { messages, nextPageToken: list.nextPageToken ?? null };
+    cacheSet(cacheKey, payload, TTL.emails);
+
     return NextResponse.json(
-      { messages, nextPageToken: list.nextPageToken ?? null },
-      { headers: { "Cache-Control": "no-store" } },
+      payload,
+      { headers: { "Cache-Control": "no-store", "X-Cache": "MISS" } },
     );
   } catch (err: any) {
     console.error("[api/emails]", err?.message ?? err);
